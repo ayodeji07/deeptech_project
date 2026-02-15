@@ -1,0 +1,21 @@
+# Data files
+data/raw/*
+data/processed/*
+notebooks/data/processed/*
+notebooks/cache
+
+# Models and outputs
+models/*
+outputs/*
+
+# Environment
+__pycache__/
+*.pyc
+.env
+
+# IDE
+.vscode/
+.idea/
+
+# Jupyter
+.ipynb_checkpoints/

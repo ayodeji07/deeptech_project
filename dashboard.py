@@ -27,14 +27,14 @@ needed_cols = ['DHSID', 'LATNUM', 'LONGNUM', 'Malaria_Prevalence_2020', 'Precipi
                'Mean_Temperature_2020', 'ITN_Coverage_2020', 'geometry']
 
 # Load with column filter (fixes deprecation; reduces load time/memory)
-full_gdf = gpd.read_file(r'C:\Users\Hp\Documents\capstone_project\notebooks\data\processed\merged_gdf.geojson',
+full_gdf = gpd.read_file(r'C:\Users\Hp\Documents\capstone_project\dashboard_data\merged_gdf.geojson',
                          columns=needed_cols)  # Only load essentials
 
 # Subsample for low-memory testing (25% → ~487 rows; set frac=1.0 for full ~1947 rows)
 full_gdf = full_gdf.sample(frac=0.25, random_state=42)  # Random seed for reproducibility
 
 # Load Nigeria boundaries (ADM1 states for basemap)
-nigeria_gdf = gpd.read_file(r'C:\Users\Hp\Documents\capstone_project\data\raw\nga_admin_boundaries.geojson\nga_admin1.geojson')
+nigeria_gdf = gpd.read_file(r'C:\Users\Hp\Documents\capstone_project\dashboard_data\nga_admin1.geojson')
 
 # === SPATIAL ANALYSIS: Precompute hotspots (Getis-Ord Gi*) ===
 # Project to geographic CRS for lat/lon access

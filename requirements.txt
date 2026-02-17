@@ -1,5 +1,5 @@
 # Core Dashboard
-dash==2.20.0
+dash==2.18.2
 plotly==5.24.1
 gunicorn==23.0.0
 
@@ -9,11 +9,11 @@ pandas==2.2.3
 numpy==2.1.3
 scipy==1.14.1
 
-# Spatial Analysis (for hotspots & interpolation)
+# Spatial Analysis
 libpysal==4.13.0
 esda==2.7.0
 
-# ML / Explainability (from your modeling notebook)
+# ML / Explainability
 scikit-learn==1.5.2
 xgboost==3.1.1
 shap==0.49.1

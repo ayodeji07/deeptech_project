@@ -9,7 +9,7 @@ pandas==2.2.3
 numpy==2.1.3
 
 # SciPy — pinned to wheel version (avoids source build on Render)
-scipy==1.10.1
+scipy
 
 # Spatial Analysis
 libpysal==4.13.0

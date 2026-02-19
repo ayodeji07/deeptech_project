@@ -20,13 +20,13 @@ needed_cols = ['DHSID', 'LATNUM', 'LONGNUM', 'Malaria_Prevalence_2020', 'Precipi
                'Enhanced_Vegetation_Index_2020', 'Land_Surface_Temperature_2020',
                'Mean_Temperature_2020', 'ITN_Coverage_2020', 'geometry']  # Adjust to your key features
 
-full_gdf = gpd.read_file(r'C:\Users\Hp\Documents\capstone_project\notebooks\data\processed\merged_gdf.geojson',
+full_gdf = gpd.read_file('dashboard_data/merged_gdf.geojson',
                          columns=needed_cols)  # Updated from 'include_fields' (deprecated)
 
 # Subsample to ~500 rows for low-memory machines (remove or increase frac for full data)
 full_gdf = full_gdf.sample(frac=0.25, random_state=42)  # ~487 rows → faster computations
 
-nigeria_gdf = gpd.read_file(r'C:\Users\Hp\Documents\capstone_project\data\raw\nga_admin_boundaries.geojson\nga_admin1.geojson')
+nigeria_gdf = gpd.read_file('dashboard_data/nga_admin1.geojson')
 
 # Precompute hotspots (using KNN for speed; permutations=0 to skip sim for speed/no p-values)
 full_gdf = full_gdf.to_crs('EPSG:4326')  # Ensure geographic CRS

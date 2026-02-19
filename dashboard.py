@@ -1,45 +1,51 @@
 # GeoAI Malaria Risk Dashboard
-# Author: Ayodeji (xAI Capstone, Feb 2026)
+# Author: Ayodeji 
 # Purpose: Interactive web app to visualize malaria risk models, maps, and insights
 # Dependencies: dash, plotly, geopandas, pandas, libpysal, esda, numpy, scipy, joblib
 # Run: python dashboard.py → Open http://127.0.0.1:8050/
 
-import dash
-from dash import dcc, html, Input, Output
-import plotly.express as px
-import plotly.graph_objects as go
-import geopandas as gpd
-import pandas as pd
-import json
-from libpysal.weights import KNN
-from esda.getisord import G_Local
-import numpy as np
-from scipy.interpolate import griddata
-import joblib  # To control parallelism
+import dash  # Web framework for dashboard
+from dash import dcc, html, Input, Output  # Core components
+import plotly.express as px  # For maps/charts
+import plotly.graph_objects as go  # For heatmaps
+import geopandas as gpd  # Spatial data handling
+import pandas as pd  # Data manipulation
+import json  # JSON serialization
+from libpysal.weights import KNN  # Spatial weights
+from esda.getisord import G_Local  # Hotspot analysis
+import numpy as np  # Numerical ops
+from scipy.interpolate import griddata  # Interpolation for intensity map
+import joblib  # Parallelism control (to avoid MKL crashes)
 import dash_bootstrap_components as dbc  # For styling/modal
 
 # Set joblib to serial (n_jobs=1) globally to avoid MKL/parallel crashes
-joblib.parallel_config(n_jobs=1, backend='threading')
+joblib.parallel_config(n_jobs=1, backend='threading')  # Serial mode: Prevents worker crashes
 
-# Load data with column selection to reduce memory (only needed columns)
+# === DATA LOADING: Subset columns to minimize memory (your GeoJSON has ~95 cols) ===
+# Key columns from your sample (DHSID for ID, LAT/LONG for coords, env vars for analysis)
 needed_cols = ['DHSID', 'LATNUM', 'LONGNUM', 'Malaria_Prevalence_2020', 'Precipitation_2020', 
                'Enhanced_Vegetation_Index_2020', 'Land_Surface_Temperature_2020',
-               'Mean_Temperature_2020', 'ITN_Coverage_2020', 'geometry']  # Adjust to your key features
+               'Mean_Temperature_2020', 'ITN_Coverage_2020', 'geometry']
 
+# Load with column filter (fixes deprecation; reduces load time/memory)
 full_gdf = gpd.read_file('dashboard_data/merged_gdf.geojson',
-                         columns=needed_cols)  # Updated from 'include_fields' (deprecated)
+                         columns=needed_cols)  # Only load essentials
 
-# Subsample to ~500 rows for low-memory machines (remove or increase frac for full data)
-full_gdf = full_gdf.sample(frac=0.25, random_state=42)  # ~487 rows → faster computations
+# Subsample for low-memory testing (25% → ~487 rows; set frac=1.0 for full ~1947 rows)
+full_gdf = full_gdf.sample(frac=0.25, random_state=42)  # Random seed for reproducibility
 
+# Load Nigeria boundaries (ADM1 states for basemap)
 nigeria_gdf = gpd.read_file('dashboard_data/nga_admin1.geojson')
 
-# Precompute hotspots (using KNN for speed; permutations=0 to skip sim for speed/no p-values)
-full_gdf = full_gdf.to_crs('EPSG:4326')  # Ensure geographic CRS
+# === SPATIAL ANALYSIS: Precompute hotspots (Getis-Ord Gi*) ===
+# Project to geographic CRS for lat/lon access
+full_gdf = full_gdf.to_crs('EPSG:4326')
+# KNN weights (k=5 neighbors; faster than Queen for points)
 w = KNN.from_dataframe(full_gdf, k=5)
-gi = G_Local(full_gdf['Malaria_Prevalence_2020'], w, permutations=0)  # No sim → faster, but no p_sim
-full_gdf['gi_star'] = gi.Gs
-full_gdf['gi_p'] = gi.p_norm  # Use asymptotic p-values instead
+# Gi* on prevalence (permutations=0 for speed; uses asymptotic p-values)
+gi = G_Local(full_gdf['Malaria_Prevalence_2020'], w, permutations=0)
+full_gdf['gi_star'] = gi.Gs  # Gi* statistic (positive = hotspot)
+full_gdf['gi_p'] = gi.p_norm  # p-value (low = significant)
 
 # Precompute intensity grid (even coarser for speed: 0.2 deg ~22km)
 bounds = nigeria_gdf.total_bounds
@@ -49,16 +55,18 @@ y_grid = np.arange(bounds[1], bounds[3], grid_res)
 x_mesh, y_mesh = np.meshgrid(x_grid, y_grid)
 points = np.array(full_gdf.geometry.apply(lambda g: (g.x, g.y)).tolist())
 values = full_gdf['Malaria_Prevalence_2020'].values
+# Linear interpolation (fast; cubic is smoother but slower)
 interp_grid = griddata(points, values, (x_mesh, y_mesh), method='linear', rescale=True)
 
-# Prepare GeoJSON for choropleth (convert Timestamps to strings to avoid JSON error)
+# === GEOJSON PREP: Fix serialization issues ===
+# Convert any datetime cols to str (avoids JSON error in choropleth if used)
 for col in nigeria_gdf.columns:
     if pd.api.types.is_datetime64_any_dtype(nigeria_gdf[col]):
-        nigeria_gdf[col] = nigeria_gdf[col].astype(str)  # Convert Timestamp to str
-nigeria_geojson = json.loads(nigeria_gdf.to_json())
+        nigeria_gdf[col] = nigeria_gdf[col].astype(str)
+nigeria_geojson = json.loads(nigeria_gdf.to_json())  # For potential choropleth
 
-# Example data for charts (replace with your actual from 03_modeling outputs)
-# Feature Importance (load or hardcode from your bars)
+# === CHART DATA: Hardcoded examples (replace with loads from your 03_modeling outputs) ===
+# Feature Importance (from XGB; expand with your actual features)
 importances_xgb = pd.Series({
     'Vegetation (Green Areas)': 0.3,  # Relatable name
     'Rainfall Levels': 0.25,
@@ -68,10 +76,10 @@ importances_xgb = pd.Series({
     # Add all your features with relatable names
 }).sort_values(ascending=False)
 
-# SHAP Summary (example bar data)
+# SHAP Summary (mean impacts; from your KernelExplainer)
 shap_df = pd.DataFrame({
-    'Factor': ['Vegetation (Green Areas)', 'Rainfall Levels', 'Evapotranspiration'],
-    'Impact': [0.1, 0.05, -0.03]  # Positive = increases risk
+    'Factor': ['Vegetation (Green Areas)', 'Rainfall Levels', 'Evapotranspiration', 'Bed Net Coverage', 'Land Temperature'],
+    'Impact': [0.1, 0.05, -0.03, -0.04, 0.02]  # Positive = increases risk; added more to avoid empty chart
 })
 
 # Spearman Correlation (on selected env vars)
@@ -90,9 +98,9 @@ help_modal = dbc.Modal(
         dbc.ModalHeader("Dashboard Guide"),
         dbc.ModalBody([
             html.P("This dashboard helps understand malaria risks in Nigeria using simple maps and charts."),
-            html.P("Hotspots: Red areas show where malaria cases are clustered (higher chance of outbreaks)."),
-            html.P("Intensity: Yellow to red map shows average malaria levels across regions."),
-            html.P("Factors: Charts explain what influences malaria, like rain or green areas."),
+            html.P("Clustering Map: Red points show where malaria cases are close together (higher outbreak risk)."),
+            html.P("Intensity Map: Yellow to red shows average malaria levels in areas (red = higher)."),
+            html.P("Risk Factors: Charts show what makes malaria more or less likely, like rain or bed nets."),
             html.P("Click tabs to explore! For questions, contact ayodeji@email.com.")
         ]),
         dbc.ModalFooter(dbc.Button("Close", id="close-modal", className="ml-auto")),
@@ -127,7 +135,7 @@ app.layout = html.Div([
             dcc.Graph(id='shap-summary', style={'height': '60vh'})
         ]),
         dcc.Tab(label='Factor Relationships', value='tab-5', children=[
-            html.P("This heatmap shows how factors like rainfall relate to malaria cases. Red = strong positive link.", style={'textAlign': 'center', 'margin': '10px'}),
+            html.P("This heatmap shows how factors like rainfall relate to malaria cases. Red = strong positive link (e.g., more rain = more cases); Blue = negative link (e.g., more bed nets = fewer cases).", style={'textAlign': 'center', 'margin': '10px'}),
             dcc.Graph(id='correlation-heatmap', style={'height': '60vh'})
         ]),
         dcc.Tab(label='Survey Data Table', value='tab-6', children=[
@@ -137,11 +145,13 @@ app.layout = html.Div([
                 columns=[{"name": i, "id": i} for i in full_gdf.drop(columns='geometry').columns],
                 data=full_gdf.drop(columns='geometry').to_dict('records'),  # Drop geometry for serialization
                 page_size=20,
-                style_table={'overflowX': 'auto'}
+                style_table={'overflowX': 'auto', 'width': '100%'},
+                style_cell={'textAlign': 'left', 'fontSize': '12px'}
             )
         ])
     ])
 ])
+
 
 # === CALLBACKS: Update graphs on tab change ===
 
@@ -153,8 +163,6 @@ app.layout = html.Div([
 )
 def toggle_modal(n1, n2):
     return True if n1 else False
-
-
 
 @app.callback(Output('hotspot-map', 'figure'), Input('tabs', 'value'))
 def render_hotspot(tab):

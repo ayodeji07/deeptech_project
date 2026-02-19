@@ -1,3 +1,9 @@
+# GeoAI Malaria Risk Dashboard
+# Author: Ayodeji (xAI Capstone, Feb 2026)
+# Purpose: Interactive web app to visualize malaria risk models, maps, and insights
+# Dependencies: dash, plotly, geopandas, pandas, libpysal, esda, numpy, scipy, joblib
+# Run: python dashboard.py → Open http://127.0.0.1:8050/
+
 import dash
 from dash import dcc, html, Input, Output
 import plotly.express as px
@@ -137,6 +143,8 @@ app.layout = html.Div([
     ])
 ])
 
+# === CALLBACKS: Update graphs on tab change ===
+
 # Callback for help modal
 @app.callback(
     Output("help-modal", "is_open"),
@@ -146,9 +154,93 @@ app.layout = html.Div([
 def toggle_modal(n1, n2):
     return True if n1 else False
 
-# ... (keep all your existing callbacks from before — no changes needed here)
+
+
+@app.callback(Output('hotspot-map', 'figure'), Input('tabs', 'value'))
+def render_hotspot(tab):
+    if tab == 'tab-1':
+        # Scatter map: Color by Gi* (hotspots red), size by significance
+        fig = px.scatter_mapbox(
+            full_gdf,
+            lat=full_gdf.geometry.y,  # Extract lat from geometry
+            lon=full_gdf.geometry.x,  # Extract lon from geometry
+            color='gi_star',
+            size='gi_p',  # Smaller = more significant (low p)
+            color_continuous_scale='Reds',
+            zoom=5,  # Nigeria view
+            center={"lat": 9.08, "lon": 7.48},  # Central Nigeria
+            mapbox_style="open-street-map",  # Free basemap
+            title="Malaria Hotspots (Getis-Ord Gi*)",
+            hover_data=['DHSID', 'Malaria_Prevalence_2020']  # Tooltip info
+        )
+        fig.update_layout(margin={"r":0,"t":40,"l":0,"b":0})  # Tight layout
+        return fig
+    return go.Figure()  # Empty if not active tab
+
+@app.callback(Output('intensity-map', 'figure'), Input('tabs', 'value'))
+def render_intensity(tab):
+    if tab == 'tab-2':
+        # Flatten interpolated grid to DF for scatter map
+        intensity_df = pd.DataFrame({
+            'lon': x_mesh.flatten(),
+            'lat': y_mesh.flatten(),
+            'intensity': interp_grid.flatten()
+        }).dropna()  # Remove NaN predictions
+        # Scatter map: Color by interpolated prevalence
+        fig = px.scatter_mapbox(
+            intensity_df,
+            lat='lat',
+            lon='lon',
+            color='intensity',
+            color_continuous_scale='YlOrRd',  # Yellow-low, red-high
+            zoom=5,
+            center={"lat": 9.08, "lon": 7.48},
+            mapbox_style="open-street-map",
+            title="Malaria Risk Intensity (Linear Interpolation)",
+            opacity=0.6  # Semi-transparent for density effect
+        )
+        fig.update_layout(margin={"r":0,"t":40,"l":0,"b":0})
+        return fig
+    return go.Figure()
+
+@app.callback(Output('importance-chart', 'figure'), Input('tabs', 'value'))
+def render_importance(tab):
+    if tab == 'tab-3':
+        # Horizontal bar for readability
+        fig = px.bar(importances_xgb, orientation='h', title="XGBoost Feature Importance")
+        fig.update_layout(xaxis_title="Importance", yaxis_title="Features")
+        return fig
+    return go.Figure()
+
+@app.callback(Output('shap-summary', 'figure'), Input('tabs', 'value'))
+def render_shap(tab):
+    if tab == 'tab-4':
+        # Horizontal bar (positive right, negative left)
+        fig = px.bar(shap_df, x='SHAP', y='Feature', orientation='h',
+                     title="SHAP Summary (Impact on Model Output)",
+                     color='SHAP', color_continuous_scale='RdBu_r')  # Red positive, blue negative
+        fig.update_layout(xaxis_title="Mean SHAP Value", yaxis_title="Features")
+        return fig
+    return go.Figure()
+
+@app.callback(Output('correlation-heatmap', 'figure'), Input('tabs', 'value'))
+def render_corr(tab):
+    if tab == 'tab-5':
+        # Heatmap with values overlaid
+        fig = go.Figure(data=go.Heatmap(
+            z=corr.values,
+            x=corr.columns,
+            y=corr.columns,
+            colorscale='RdBu',  # Red positive, blue negative
+            text=corr.round(2),  # Show values
+            texttemplate="%{text}",
+            textfont={"size": 10}
+        ))
+        fig.update_layout(title="Spearman Correlation Heatmap (Env Factors vs. Prevalence)")
+        return fig
+    return go.Figure()
 
 server = app.server   # Required for gunicorn/Render deployment
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=8050)
+    app.run(debug=False, host='0.0.0.0', port=8050)

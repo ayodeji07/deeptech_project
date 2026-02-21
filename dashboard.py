@@ -224,10 +224,10 @@ def render_importance(tab):
 def render_shap(tab):
     if tab == 'tab-4':
         # Horizontal bar (positive right, negative left)
-        fig = px.bar(shap_df, x='SHAP', y='Feature', orientation='h',
+        fig = px.bar(shap_df, x='Impact', y='Factor', orientation='h',
                      title="SHAP Summary (Impact on Model Output)",
-                     color='SHAP', color_continuous_scale='RdBu_r')  # Red positive, blue negative
-        fig.update_layout(xaxis_title="Mean SHAP Value", yaxis_title="Features")
+                     color='Impact', color_continuous_scale='RdBu_r') # Red positive, blue negative
+        fig.update_layout(xaxis_title="Mean SHAP Value", yaxis_title="Factors")
         return fig
     return go.Figure()
 

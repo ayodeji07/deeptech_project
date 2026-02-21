@@ -178,10 +178,13 @@ def render_hotspot(tab):
             zoom=5,  # Nigeria view
             center={"lat": 9.08, "lon": 7.48},  # Central Nigeria
             mapbox_style="open-street-map",  # Free basemap
-            title="Malaria Hotspots (Getis-Ord Gi*)",
+            title="Malaria Hotspots",
             hover_data=['DHSID', 'Malaria_Prevalence_2020']  # Tooltip info
         )
-        fig.update_layout(margin={"r":0,"t":40,"l":0,"b":0})  # Tight layout
+        fig.update_layout(
+            margin={"r":0,"t":40,"l":0,"b":0},  # Tight layout
+            coloraxis_colorbar=dict(title='Clustering Strength')
+        )
         return fig
     return go.Figure()  # Empty if not active tab
 
@@ -226,7 +229,8 @@ def render_shap(tab):
         # Horizontal bar (positive right, negative left)
         fig = px.bar(shap_df, x='Impact', y='Factor', orientation='h',
                      title="SHAP Summary (Impact on Model Output)",
-                     color='Impact', color_continuous_scale='RdBu_r') # Red positive, blue negative
+                     color='Impact', color_continuous_scale='RdBu_r', # Red positive, blue negative
+                     text_auto='.2f')  # Add text labels for better visibility
         fig.update_layout(xaxis_title="Mean SHAP Value", yaxis_title="Factors")
         return fig
     return go.Figure()
@@ -239,7 +243,7 @@ def render_corr(tab):
             z=corr.values,
             x=corr.columns,
             y=corr.columns,
-            colorscale='RdBu',  # Red positive, blue negative
+            colorscale='RdBu_r',  # Reversed: Blue negative, red positive
             text=corr.round(2),  # Show values
             texttemplate="%{text}",
             textfont={"size": 10}
